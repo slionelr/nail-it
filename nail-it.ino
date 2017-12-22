@@ -2,10 +2,15 @@
 #include "MPU6050_6Axis_MotionApps20.h"
 #include "Wire.h"
 
+#include "RingBuffer.h"
+
 #include <ArduinoLog.h>
+
+#define DEBUG // TODO: delete this in prod
 
 #define INTERRUPT_PIN 2
 #define LED_INDICATOR 7
+#define SPEAKER_PIN   8
 
 // Led status
 int bHigh = HIGH;
@@ -26,30 +31,45 @@ VectorFloat gravity;    // [x, y, z]            gravity vector
 VectorInt16 aaReal;     // [x, y, z]            gravity-free accel sensor measurements
 float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
 
+// Potentials
+bool isMovingTo;
+
+// Log
+int log_level;
+
 // ################################################################
 // ###               INTERRUPT DETECTION ROUTINE                ###
 // ################################################################
 volatile bool mpuInterrupt = false;     // indicates whether MPU interrupt pin has gone high
 void dmpDataReady() {
     mpuInterrupt = true;
+    Log.trace("INTERRUPT\n");
+//    mpuIntStatus = mpu.getIntStatus();
 }
 
 void setup() {
   // Set monitor output BDU
   Serial.begin(115200);
-  Log.begin(LOG_LEVEL_NOTICE, &Serial, true);
+
+  #ifdef DEBUG
+  log_level = LOG_LEVEL_TRACE;
+  #else
+  log_level = LOG_LEVEL_NOTICE;
+  #endif
+  Log.begin(log_level, &Serial, true);
 
   // Set led inidicator for arduino stacking
   pinMode(LED_INDICATOR, OUTPUT);
+  pinMode(SPEAKER_PIN, OUTPUT);
   
   // Start connection and set speed to the Gyro sensor
   Wire.begin();
-//  Wire.setClock(400000); // 400kHz I2C clock. Comment this line if having compilation difficulties
+  Wire.setClock(400000); // 400kHz I2C clock. Comment this line if having compilation difficulties
 
   // Init the gyro
   mpu.initialize();
   // Set interrupt pin number on the arduino
-  pinMode(INTERRUPT_PIN, INPUT);
+//  pinMode(INTERRUPT_PIN, INPUT);
 
   // Check the connection to the gyro
   if (mpu.testConnection()) {
@@ -60,19 +80,20 @@ void setup() {
 
   // DMP init and Gyro/Accel offset *basic* reset
   devStatus = mpu.dmpInitialize();
-  mpu.setXAccelOffset(176);
-  mpu.setYAccelOffset(-554);
-  mpu.setZAccelOffset(2602);
-  mpu.setXGyroOffset(51);
-  mpu.setYGyroOffset(-53);
-  mpu.setZGyroOffset(111);
+  mpu.setXAccelOffset(-669);
+  mpu.setYAccelOffset(-450);
+  mpu.setZAccelOffset(1963);
+  mpu.setXGyroOffset(74);
+  mpu.setYGyroOffset(-16);
+  mpu.setZGyroOffset(-38);
 
   if (devStatus == 0) {
       Log.trace("Enabling DMP...\n");
       mpu.setDMPEnabled(true);
       
       Log.trace("Enabling interrupt detection (Arduino external interrupt 0)...\n");
-      attachInterrupt(digitalPinToInterrupt(INTERRUPT_PIN), dmpDataReady, RISING);
+      // TODO: Check why in some point the interrupt pin goes crazy! and stucks in a "loop" calling the dmpDataReady() function.
+      //attachInterrupt(digitalPinToInterrupt(INTERRUPT_PIN), dmpDataReady, RISING);
       mpuIntStatus = mpu.getIntStatus();
   
       // set our DMP Ready flag so the main loop() function knows it's okay to use it
@@ -88,6 +109,9 @@ void setup() {
       // (if it's going to break, usually the code will be 1)
       Log.error("DMP Initialization failed (code %d)\n", devStatus);
   }
+
+  // Potentials setups
+  isMovingTo = false;
 }
 
 void loop() {
@@ -96,7 +120,9 @@ void loop() {
   digitalWrite(LED_INDICATOR, bHigh);
   
   // if programming failed, don't try to do anything
-  if (!dmpReady) return;
+  if (!dmpReady) {
+    return;
+  }
 
   // wait for MPU interrupt or extra packet(s) available
   //while (!mpuInterrupt && fifoCount < packetSize) {
@@ -115,6 +141,7 @@ void loop() {
   // reset interrupt flag and get INT_STATUS byte
     mpuInterrupt = false;
     mpuIntStatus = mpu.getIntStatus();
+    Log.verbose("MPT Status: %d\n", mpuIntStatus);
 
     // get current FIFO count
     fifoCount = mpu.getFIFOCount();
@@ -123,7 +150,7 @@ void loop() {
     if ((mpuIntStatus & 0x10) || fifoCount == 1024) {
         // reset so we can continue cleanly
         mpu.resetFIFO();
-        Log.error("FIFO overflow!");
+        Log.error("FIFO overflow!\n");
 
     // otherwise, check for DMP data ready interrupt (this should happen frequently)
     } else if (mpuIntStatus & 0x02) {
@@ -144,9 +171,49 @@ void loop() {
         mpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
         mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
 
-        Log.trace("areal\t%d\t%d\t%d\n", aaReal.x, aaReal.y, aaReal.z);
-        Log.trace("ypr\t%d\t%d\t%d\n", ypr[0] * 180/M_PI, ypr[1] * 180/M_PI, ypr[2] * 180/M_PI);
+        float yaw = ypr[0] * 180/M_PI;
+        float pitch = ypr[1] * 180/M_PI;
+        float roll = ypr[2] * 180/M_PI;
+
+        Log.trace("areal\t%d\t%d\t%d \t||| ", aaReal.x, aaReal.y, aaReal.z);
+        #ifdef DEBUG
+        Serial.print("YPR:\t ");
+        Serial.print(yaw);
+        Serial.print("\t");
+        Serial.print(pitch);
+        Serial.print("\t");
+        Serial.print(roll);
+        Serial.print("\n");
+        #endif
+
+        Log.trace("Check hand position\n");
+        if (checkPotentialPosition(yaw, pitch, roll)) {
+            Log.trace("The hand is neer to the mouth!\n");
+
+            // Check the sesmic sensor for ksisa of the nails
+            digitalWrite(SPEAKER_PIN, HIGH);
+        } else {
+          digitalWrite(SPEAKER_PIN, 0);
+        }
     }
 
-    
+    delay(1);
 }
+
+/// Check if the hand position is in potenital direction to the mouth.
+bool checkPotentialPosition(float yaw, float pitch, float roll) {
+    bool isInDirection = false;
+    if ((0.0 < yaw) && (45.0 > yaw)) {
+        if ((15.0 < pitch) && (30.0 > pitch)) {
+            if ((10.0 > roll) && (-10.0 < roll)) {
+                isInDirection = true;
+            }
+        }
+    }
+    return isInDirection;
+}
+
+bool checkPotentialAccel(float x, float y, float z) {
+    return true;
+}
+
