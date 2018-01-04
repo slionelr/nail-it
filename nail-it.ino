@@ -129,66 +129,64 @@ void loop() {
 
   flashLed();
 
-  // reset interrupt flag and get INT_STATUS byte
-    mpuInterrupt = false;
-    mpuIntStatus = mpu.getIntStatus();
-    Log.verbose("MPT Status: %d\n", mpuIntStatus);
+  mpuIntStatus = mpu.getIntStatus();
+  Log.verbose("MPT Status: %d\n", mpuIntStatus);
 
-    // get current FIFO count
-    fifoCount = mpu.getFIFOCount();
+  // get current FIFO count
+  fifoCount = mpu.getFIFOCount();
 
-    // check for overflow (this should never happen unless our code is too inefficient)
-    if ((mpuIntStatus & 0x10) || fifoCount == 1024) {
-        // reset so we can continue cleanly
-        Log.error("FIFO overflow!\n");
-        mpu.resetFIFO();
+  // check for overflow (this should never happen unless our code is too inefficient)
+  if ((mpuIntStatus & 0x10) || fifoCount == 1024) {
+    // reset so we can continue cleanly
+    Log.error("FIFO overflow!\n");
+    mpu.resetFIFO();
 
-    // otherwise, check for DMP data ready interrupt (this should happen frequently)
-    } else if (mpuIntStatus & 0x02) {
-        // wait for correct available data length, should be a VERY short wait
-        while (fifoCount < packetSize) fifoCount = mpu.getFIFOCount();
+  // otherwise, check for DMP data ready interrupt (this should happen frequently)
+  } else if (mpuIntStatus & 0x02) {
+    // wait for correct available data length, should be a VERY short wait
+    while (fifoCount < packetSize) fifoCount = mpu.getFIFOCount();
 
-        // read a packet from FIFO
-        mpu.getFIFOBytes(fifoBuffer, packetSize);
-        
-        // track FIFO count here in case there is > 1 packet available
-        // (this lets us immediately read more without waiting for an interrupt)
-        fifoCount -= packetSize;
+    // read a packet from FIFO
+    mpu.getFIFOBytes(fifoBuffer, packetSize);
+    
+    // track FIFO count here in case there is > 1 packet available
+    // (this lets us immediately read more without waiting for an interrupt)
+    fifoCount -= packetSize;
 
-        // display real acceleration, adjusted to remove gravity
-        mpu.dmpGetQuaternion(&q, fifoBuffer);
-        mpu.dmpGetAccel(&aa, fifoBuffer);
-        mpu.dmpGetGravity(&gravity, &q);
-        mpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
-        mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
+    // display real acceleration, adjusted to remove gravity
+    mpu.dmpGetQuaternion(&q, fifoBuffer);
+    mpu.dmpGetAccel(&aa, fifoBuffer);
+    mpu.dmpGetGravity(&gravity, &q);
+    mpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
+    mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
 
-        float yaw = ypr[0] * 180/M_PI;
-        float pitch = ypr[1] * 180/M_PI;
-        float roll = ypr[2] * 180/M_PI;
+    float yaw = ypr[0] * 180/M_PI;
+    float pitch = ypr[1] * 180/M_PI;
+    float roll = ypr[2] * 180/M_PI;
 
-        Log.trace("areal\t%d\t%d\t%d \t||| ", aaReal.x, aaReal.y, aaReal.z);
-        #ifdef DEBUG
-        Serial.print("YPR:\t ");
-        Serial.print(yaw);
-        Serial.print("\t");
-        Serial.print(pitch);
-        Serial.print("\t");
-        Serial.print(roll);
-        Serial.print("\n");
-        #endif
+    Log.trace("areal\t%d\t%d\t%d \t||| ", aaReal.x, aaReal.y, aaReal.z);
+    #ifdef DEBUG
+    Serial.print("YPR:\t ");
+    Serial.print(yaw);
+    Serial.print("\t");
+    Serial.print(pitch);
+    Serial.print("\t");
+    Serial.print(roll);
+    Serial.print("\n");
+    #endif
 
-        Log.trace("Check hand position\n");
-        if (checkPotentialPosition(yaw, pitch, roll)) {
-            Log.trace("The hand is neer to the mouth!\n");
+    Log.trace("Check hand position\n");
+    if (checkPotentialPosition(yaw, pitch, roll)) {
+      Log.trace("The hand is neer to the mouth!\n");
 
-            // Check the sesmic sensor for ksisa of the nails
-            digitalWrite(SPEAKER_PIN, HIGH);
-        } else {
-          digitalWrite(SPEAKER_PIN, 0);
-        }
+      // Check the sesmic sensor for ksisa of the nails
+      digitalWrite(SPEAKER_PIN, HIGH);
+    } else {
+      digitalWrite(SPEAKER_PIN, 0);
     }
+  }
 
-    delay(15);
+  delay(15);
 }
 
 void flashLed() {
@@ -199,15 +197,15 @@ void flashLed() {
 
 /// Check if the hand position is in potenital direction to the mouth.
 bool checkPotentialPosition(float yaw, float pitch, float roll) {
-    bool isInDirection = false;
-    if ((0.0 < yaw) && (45.0 > yaw)) {
-        if ((15.0 < pitch) && (30.0 > pitch)) {
-            if ((10.0 > roll) && (-10.0 < roll)) {
-                isInDirection = true;
-            }
-        }
+  bool isInDirection = false;
+  if ((0.0 < yaw) && (45.0 > yaw)) {
+    if ((15.0 < pitch) && (30.0 > pitch)) {
+      if ((10.0 > roll) && (-10.0 < roll)) {
+          isInDirection = true;
+      }
     }
-    return isInDirection;
+  }
+  return isInDirection;
 }
 
 bool checkPotentialAccel(float x, float y, float z) {
