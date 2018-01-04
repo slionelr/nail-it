@@ -64,8 +64,6 @@ void setup() {
 
   // Init the gyro
   mpu.initialize();
-  // Set interrupt pin number on the arduino
-//  pinMode(INTERRUPT_PIN, INPUT);
 
   // Check the connection to the gyro
   if (mpu.testConnection()) {
@@ -92,10 +90,6 @@ void setup() {
   if (devStatus == 0) {
       Log.trace("Enabling DMP...\n");
       mpu.setDMPEnabled(true);
-      
-      Log.trace("Enabling interrupt detection (Arduino external interrupt 0)...\n");
-      // TODO: Check why in some point the interrupt pin goes crazy! and stucks in a "loop" calling the dmpDataReady() function.
-      //attachInterrupt(digitalPinToInterrupt(INTERRUPT_PIN), dmpDataReady, RISING);
       mpuIntStatus = mpu.getIntStatus();
   
       // set our DMP Ready flag so the main loop() function knows it's okay to use it
