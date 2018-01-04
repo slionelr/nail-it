@@ -44,19 +44,6 @@ float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gra
 // Potentials
 bool isMovingTo;
 
-// Log
-int log_level;
-
-// ################################################################
-// ###               INTERRUPT DETECTION ROUTINE                ###
-// ################################################################
-volatile bool mpuInterrupt = false;     // indicates whether MPU interrupt pin has gone high
-void dmpDataReady() {
-    mpuInterrupt = true;
-    Log.trace("INTERRUPT\n");
-//    mpuIntStatus = mpu.getIntStatus();
-}
-
 void setup() {
   // Set monitor output BDU
   Serial.begin(BDU);
