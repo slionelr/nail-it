@@ -4,6 +4,7 @@
 #include <MPU6050_6Axis_MotionApps20.h>
 
 #define DEBUG // TODO: delete this in prod
+//#define PRINT_GYRO
 
 #define BDU         115200
 #define WIRE_CLOCK  400000 
@@ -26,7 +27,7 @@ uint16_t fifoCount;     // count of all bytes currently in FIFO
 uint8_t fifoBuffer[64]; // FIFO storage buffer
 
 // Calibration
-bool isCalibrated = false;
+bool isCalibrated;
 int mean_ax,mean_ay,mean_az,mean_gx,mean_gy,mean_gz,state=0;
 int ax_offset,ay_offset,az_offset,gx_offset,gy_offset,gz_offset;
 int buffersize=1000;     //Amount of readings used to average, make it higher to get more precision but sketch will be slower  (default:1000)
@@ -57,6 +58,7 @@ void setup() {
   // Set led inidicator for arduino stacking
   pinMode(LED_INDICATOR, OUTPUT);
   pinMode(SPEAKER_PIN, OUTPUT);
+  pinMode(VIB_SENS_1, INPUT);
   
   // Start connection and set speed to the Gyro sensor
   Wire.begin();
@@ -74,6 +76,10 @@ void setup() {
 
   // DMP init and Gyro/Accel offset *basic* reset
   devStatus = mpu.dmpInitialize();
+
+  isCalibrated = false;
+//  isCalibrated = true;
+  
 //  mpu.setXAccelOffset(-669);
 //  mpu.setYAccelOffset(-450);
 //  mpu.setZAccelOffset(1963);
@@ -186,6 +192,9 @@ void loop() {
     }
   }
 
+  // Vibration handel
+  int vib = getVibration();
+
   delay(15);
 }
 
@@ -210,6 +219,12 @@ bool checkPotentialPosition(float yaw, float pitch, float roll) {
 
 bool checkPotentialAccel(float x, float y, float z) {
     return true;
+}
+
+int getVibration() {
+  int measurement = pulseIn(VIB_SENS_1, HIGH);
+  Log.trace("The measurement of the vibration is %d\n", measurement);
+  return measurement;
 }
 
 void calibrate() {
@@ -257,7 +272,7 @@ void calibrate() {
       Serial.print("\t");
       Serial.println(gz_offset); 
       
-      Log.trace("\nData is printed as: acelX acelY acelZ giroX giroY giroZ");
+      Log.trace("Data is printed as: acelX acelY acelZ giroX giroY giroZ\n");
       state++;
     }
     #endif
@@ -270,6 +285,20 @@ void meansensors(){
   while (i<(buffersize+101)){
     // read raw accel/gyro measurements from device
     mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+    #if defined(DEBUG) and defined(PRINT_GYRO)
+    Serial.print("getMotion6: ax ");
+    Serial.print(ax);
+    Serial.print("\tay ");
+    Serial.print(ay);
+    Serial.print("\taz ");
+    Serial.print(az);
+    Serial.print("\tgx ");
+    Serial.print(gx);
+    Serial.print("\tgy ");
+    Serial.print(gy);
+    Serial.print("\tgz ");
+    Serial.println(gz);
+    #endif
     
     if (i>100 && i<=(buffersize+100)){ //First 100 measures are discarded
       buff_ax=buff_ax+ax;
