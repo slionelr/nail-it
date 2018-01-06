@@ -6,10 +6,13 @@
 
 #define NEO_INDICATOR
 
+// DEBUG
 #define DEBUG // TODO: Delete(!) this in prod
+// Gyroscope and Accelerometer
 //#define PRINT_GYRO_MEASURS
-#define PRINT_GYRO_CALIB_PROCESS
+//#define PRINT_GYRO_CALIB_PROCESS
 //#define BYPASS_GYRO_CALIB
+// Vibration
 //#define PRINT_VIB
 
 #define BDU         115200
