@@ -70,8 +70,8 @@ bool isMovingTo;
 // Vibration
 #define THRESH_MIN  1
 #define THRESH_MAX  4
-#define THRESH_START_CALIB_MIN  15000
-#define THRESH_START_CALIB_MAX  20000
+#define THRESH_START_CALIB_MIN  1500
+#define THRESH_START_CALIB_MAX  2000
 int preMeasur;
 int measurement;
 
@@ -182,8 +182,8 @@ void loop() {
     detectIndiDelay = RET_LOOP_NEO;
     purple();
   } else {
-    noTone(SPEAKER_PIN);
     if (0 == --detectIndiDelay) {
+      noTone(SPEAKER_PIN);
       blue();
     }
   }
