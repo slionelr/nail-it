@@ -57,6 +57,12 @@ float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gra
 // Potentials
 bool isMovingTo;
 
+// Vibration
+#define THRESH_MIN  3
+#define THRESH_MAX  9
+int preMeasur;
+int measurement;
+
 #ifdef NEO_INDICATOR
 // FLORA NeoPixel status indicator
 Adafruit_NeoPixel indi = Adafruit_NeoPixel(1, NEO_LED, NEO_GRB + NEO_KHZ800);
@@ -103,8 +109,8 @@ void setup() {
   // DMP init and Gyro/Accel offset *basic* reset
   devStatus = mpu.dmpInitialize();
 
-  isCalibrated = false;
-//  isCalibrated = true;
+//  isCalibrated = false;
+  isCalibrated = true;
   
 //  mpu.setXAccelOffset(-669);
 //  mpu.setYAccelOffset(-450);
@@ -140,12 +146,23 @@ void setup() {
 
   // Potentials setups
   isMovingTo = false;
+
+  // Vibration setups
+  preMeasur = 0;
+  measurement = 0;
 }
 
 void loop() {
   // if programming failed, don't try to do anything
   if (!dmpReady) {
       return;
+  }
+
+  // Get vibration measurement first of all
+  // This is for accurate pulse calculation (beacuse we are not going to use the pulseIn function)
+  int vib = getVibration();
+  if (vib > 0) {
+    Log.notice("Vibration result: %d\n", vib);
   }
 
   if (!isCalibrated) {
@@ -197,8 +214,8 @@ void loop() {
     float pitch = ypr[1] * 180/M_PI;
     float roll = ypr[2] * 180/M_PI;
 
+    #ifdef defined(DEBUG) and defined(PRINT_GYRO)
     Log.trace("areal\t%d\t%d\t%d \t||| ", aaReal.x, aaReal.y, aaReal.z);
-    #ifdef DEBUG
     Serial.print("YPR:\t ");
     Serial.print(yaw);
     Serial.print("\t");
@@ -208,7 +225,7 @@ void loop() {
     Serial.print("\n");
     #endif
 
-    Log.trace("Check hand position\n");
+//    Log.trace("Check hand position\n");
     if (checkPotentialPosition(yaw, pitch, roll)) {
       Log.trace("The hand is neer to the mouth!\n");
 
@@ -218,9 +235,6 @@ void loop() {
       digitalWrite(SPEAKER_PIN, 0);
     }
   }
-
-  // Vibration handel
-  int vib = getVibration();
 
   delay(15);
 }
@@ -249,9 +263,19 @@ bool checkPotentialAccel(float x, float y, float z) {
 }
 
 int getVibration() {
-  int measurement = pulseIn(VIB_SENS_1, HIGH);
-  Log.trace("The measurement of the vibration is %d\n", measurement);
-  return measurement;
+  int current = digitalRead(VIB_SENS_1);
+  int ret = 0;
+  if (current == LOW){
+    if (current != preMeasur) {
+      ret = measurement;
+      measurement = 0;
+      preMeasur = 0;
+    }
+  } else {
+    measurement++;
+  }
+  preMeasur = current;
+  return ret;
 }
 
 void calibrate() {
