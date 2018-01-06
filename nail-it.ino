@@ -2,7 +2,9 @@
 #include <Wire.h>
 #include <ArduinoLog.h>
 #include <MPU6050_6Axis_MotionApps20.h>
+#include <Adafruit_NeoPixel.h>
 
+//#define NEO_INDICATOR
 #define DEBUG // TODO: delete this in prod
 //#define PRINT_GYRO
 
@@ -10,12 +12,22 @@
 #define WIRE_CLOCK  400000 
 
 #define INTERRUPT_PIN 2
-#define SPEAKER_PIN   8
+#define SPEAKER_PIN   12
 #define LED_INDICATOR 7
 #define VIB_SENS_1    10
 
+#ifdef NEO_INDICATOR
+#define NEO_LED       8
+#endif
+
 // Led status
+#define MAX_BRIGHT  100
+#define MIN_BRIGHT  1
+float brightStep = 0.5;
+float currBright;
+bool isDown;
 int intLed;
+
 
 // MPU control/status vars
 MPU6050 mpu;
@@ -45,6 +57,11 @@ float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gra
 // Potentials
 bool isMovingTo;
 
+#ifdef NEO_INDICATOR
+// FLORA NeoPixel status indicator
+Adafruit_NeoPixel indi = Adafruit_NeoPixel(1, NEO_LED, NEO_GRB + NEO_KHZ800);
+#endif
+
 void setup() {
   // Set monitor output BDU
   Serial.begin(BDU);
@@ -53,6 +70,15 @@ void setup() {
   Log.begin(LOG_LEVEL_TRACE, &Serial, true);
   #else
   Log.begin(LOG_LEVEL_NOTICE, &Serial, true);
+  #endif
+
+  #ifdef NEO_INDICATOR
+  // NeoPixel Indicator
+  isDown = true;
+  currBright = MAX_BRIGHT;
+  indi.begin();
+  indi.setBrightness(currBright);
+  red();
   #endif
 
   // Set led inidicator for arduino stacking
@@ -134,6 +160,7 @@ void loop() {
   }
 
   flashLed();
+  blue();
 
   mpuIntStatus = mpu.getIntStatus();
   Log.verbose("MPT Status: %d\n", mpuIntStatus);
@@ -283,6 +310,7 @@ void meansensors(){
   long i=0,buff_ax=0,buff_ay=0,buff_az=0,buff_gx=0,buff_gy=0,buff_gz=0;
 
   while (i<(buffersize+101)){
+    fade();
     // read raw accel/gyro measurements from device
     mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
     #if defined(DEBUG) and defined(PRINT_GYRO)
@@ -333,6 +361,7 @@ void calibration(){
     int ready=0;
     
     flashLed();
+    fade();
     
     mpu.setXAccelOffset(ax_offset);
     mpu.setYAccelOffset(ay_offset);
@@ -367,3 +396,28 @@ void calibration(){
   }
 }
 
+#ifdef NEO_INDICATOR
+// NeoPixel Indication function
+void red() {
+  indi.setPixelColor(0, indi.Color(255, 0, 0));
+  indi.show();
+}
+
+void blue() {
+  indi.setPixelColor(0, indi.Color(0, 0, 255));
+  indi.show();
+}
+
+void fade() {
+  currBright += brightStep;
+  if ((currBright > MAX_BRIGHT) || (currBright < MIN_BRIGHT)) {
+    brightStep = brightStep * (-1.0);
+  }
+  Log.trace("Bright of NeoPixel :%d\n", currBright);
+  indi.setBrightness(currBright);
+}
+#else
+void red() {}
+void blue() {}
+void fade() {}
+#endif
