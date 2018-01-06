@@ -11,8 +11,10 @@
 #define BDU         115200
 #define WIRE_CLOCK  400000 
 
+#define ALARM_TONE  37
+
 #define INTERRUPT_PIN 2
-#define SPEAKER_PIN   12
+#define SPEAKER_PIN   9
 #define LED_INDICATOR 7
 #define VIB_SENS_1    10
 
@@ -58,8 +60,8 @@ float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gra
 bool isMovingTo;
 
 // Vibration
-#define THRESH_MIN  3
-#define THRESH_MAX  9
+#define THRESH_MIN  1
+#define THRESH_MAX  4
 int preMeasur;
 int measurement;
 
@@ -161,8 +163,11 @@ void loop() {
   // Get vibration measurement first of all
   // This is for accurate pulse calculation (beacuse we are not going to use the pulseIn function)
   int vib = getVibration();
-  if (vib > 0) {
-    Log.notice("Vibration result: %d\n", vib);
+  if (vib > 0 ) { Log.notice("Vibration result: %d\n", vib); }
+  if ((vib > THRESH_MIN) && (vib < THRESH_MAX)) {
+    tone(SPEAKER_PIN, ALARM_TONE);
+  } else {
+    noTone(SPEAKER_PIN);
   }
 
   if (!isCalibrated) {
@@ -230,9 +235,9 @@ void loop() {
       Log.trace("The hand is neer to the mouth!\n");
 
       // Check the sesmic sensor for ksisa of the nails
-      digitalWrite(SPEAKER_PIN, HIGH);
+      tone(SPEAKER_PIN, ALARM_TONE);
     } else {
-      digitalWrite(SPEAKER_PIN, 0);
+      noTone(SPEAKER_PIN);
     }
   }
 
