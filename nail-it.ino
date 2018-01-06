@@ -30,9 +30,9 @@
 #endif
 
 // Led status
-#define MAX_BRIGHT    50
-#define MIN_BRIGHT    5
-#define MAX_LOOP_NEO  15
+#define MAX_BRIGHT    32
+#define MIN_BRIGHT    2
+#define MAX_LOOP_NEO  5
 #define RET_LOOP_NEO  (MAX_LOOP_NEO * 2)
 enum LED_STATUS { RED, GREEN, BLUE };
 LED_STATUS statusLed;
