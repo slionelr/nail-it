@@ -4,9 +4,11 @@
 #include <MPU6050_6Axis_MotionApps20.h>
 #include <Adafruit_NeoPixel.h>
 
-//#define NEO_INDICATOR
-#define DEBUG // TODO: delete this in prod
+#define NEO_INDICATOR
+
+#define DEBUG // TODO: Delete(!) this in prod
 //#define PRINT_GYRO
+//#define BYPASS_GYRO_CALIB
 
 #define BDU         115200
 #define WIRE_CLOCK  400000 
@@ -23,12 +25,17 @@
 #endif
 
 // Led status
-#define MAX_BRIGHT  100
-#define MIN_BRIGHT  1
-float brightStep = 0.5;
-float currBright;
-bool isDown;
+#define MAX_BRIGHT    50
+#define MIN_BRIGHT    5
+#define MAX_LOOP_NEO  15
+#define RET_LOOP_NEO  (MAX_LOOP_NEO * 2)
+enum LED_STATUS { RED, GREEN, BLUE };
+LED_STATUS statusLed;
+int brightStep = 1;
+int currBright;
+int loopCounter;
 int intLed;
+int detectIndiDelay;
 
 
 // MPU control/status vars
@@ -82,7 +89,7 @@ void setup() {
 
   #ifdef NEO_INDICATOR
   // NeoPixel Indicator
-  isDown = true;
+  loopCounter = 0;
   currBright = MAX_BRIGHT;
   indi.begin();
   indi.setBrightness(currBright);
@@ -111,8 +118,12 @@ void setup() {
   // DMP init and Gyro/Accel offset *basic* reset
   devStatus = mpu.dmpInitialize();
 
-//  isCalibrated = false;
+  
+  #if defined(DEBUG) and defined(BYPASS_GYRO_CALIB)
   isCalibrated = true;
+  #else
+  isCalibrated = false;
+  #endif
   
 //  mpu.setXAccelOffset(-669);
 //  mpu.setYAccelOffset(-450);
@@ -166,8 +177,14 @@ void loop() {
   if (vib > 0 ) { Log.notice("Vibration result: %d\n", vib); }
   if ((vib > THRESH_MIN) && (vib < THRESH_MAX)) {
     tone(SPEAKER_PIN, ALARM_TONE);
+    detectIndiDelay = RET_LOOP_NEO;
+    purple();
   } else {
     noTone(SPEAKER_PIN);
+    if (0 == --detectIndiDelay) {
+      Log.trace("BLUE AGAIN\n");
+      blue();
+    }
   }
 
   if (!isCalibrated) {
@@ -179,10 +196,10 @@ void loop() {
     }
     calibrate();
     isCalibrated = true;
+    blue();
   }
 
   flashLed();
-  blue();
 
   mpuIntStatus = mpu.getIntStatus();
   Log.verbose("MPT Status: %d\n", mpuIntStatus);
@@ -437,13 +454,22 @@ void blue() {
   indi.show();
 }
 
+void purple() {
+  indi.setPixelColor(0, indi.Color(255, 0, 255));
+  indi.show();
+}
+
 void fade() {
-  currBright += brightStep;
-  if ((currBright > MAX_BRIGHT) || (currBright < MIN_BRIGHT)) {
-    brightStep = brightStep * (-1.0);
+  loopCounter++;
+  if (loopCounter == MAX_LOOP_NEO) {
+    loopCounter = 0;
+    currBright = currBright + brightStep;
+    if ((currBright > MAX_BRIGHT) || (currBright < MIN_BRIGHT)) {
+      brightStep = brightStep * (-1);
+    }
+    indi.setBrightness(currBright);
+    indi.show();
   }
-  Log.trace("Bright of NeoPixel :%d\n", currBright);
-  indi.setBrightness(currBright);
 }
 #else
 void red() {}
