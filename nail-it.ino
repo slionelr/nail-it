@@ -9,6 +9,7 @@
 #define DEBUG // TODO: Delete(!) this in prod
 //#define PRINT_GYRO
 //#define BYPASS_GYRO_CALIB
+//#define PRINT_VIB
 
 #define BDU         115200
 #define WIRE_CLOCK  400000 
@@ -69,6 +70,8 @@ bool isMovingTo;
 // Vibration
 #define THRESH_MIN  1
 #define THRESH_MAX  4
+#define THRESH_START_CALIB_MIN  15000
+#define THRESH_START_CALIB_MAX  20000
 int preMeasur;
 int measurement;
 
@@ -93,7 +96,6 @@ void setup() {
   currBright = MAX_BRIGHT;
   indi.begin();
   indi.setBrightness(currBright);
-  red();
   #endif
 
   // Set led inidicator for arduino stacking
@@ -182,18 +184,22 @@ void loop() {
   } else {
     noTone(SPEAKER_PIN);
     if (0 == --detectIndiDelay) {
-      Log.trace("BLUE AGAIN\n");
       blue();
     }
   }
 
   if (!isCalibrated) {
-    // TODO: Need to be changed to the finger vibration signal - wait in the loop until the signal
-    while (!Serial.available()){
+    int toCalib = getVibration();
+    Log.notice(F("Vibrate hard to start calibration.\n"));
+    while ((toCalib < THRESH_START_CALIB_MIN) || (toCalib > THRESH_START_CALIB_MAX)) {
       flashLed();
-      Log.notice(F("Send any character to start calibration.\n"));
-      delay(1500);
+      if (toCalib > 0) { 
+        Log.notice(F("Vibrate hard to start calibration. %d\n"), toCalib);
+      }
+      toCalib = getVibration();
     }
+    red();
+    Log.trace(F("Start calibration...\n"));
     calibrate();
     isCalibrated = true;
     blue();
@@ -297,6 +303,9 @@ int getVibration() {
     measurement++;
   }
   preMeasur = current;
+  #if defined(DEBUG) and defined(PRINT_VIB)
+  if (ret > 0) { Log.trace("Vibration %d\n", ret); }
+  #endif
   return ret;
 }
 
