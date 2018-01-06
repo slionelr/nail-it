@@ -7,7 +7,8 @@
 #define NEO_INDICATOR
 
 #define DEBUG // TODO: Delete(!) this in prod
-//#define PRINT_GYRO
+//#define PRINT_GYRO_MEASURS
+#define PRINT_GYRO_CALIB_PROCESS
 //#define BYPASS_GYRO_CALIB
 //#define PRINT_VIB
 
@@ -126,19 +127,26 @@ void setup() {
   #else
   isCalibrated = false;
   #endif
+
+  ax_offset = -755;
+  ay_offset = -396;
+  az_offset = 1979;
+  gx_offset = 69;
+  gy_offset = -9;
+  gz_offset = -39;
   
-//  mpu.setXAccelOffset(-669);
-//  mpu.setYAccelOffset(-450);
-//  mpu.setZAccelOffset(1963);
-//  mpu.setXGyroOffset(74);
-//  mpu.setYGyroOffset(-16);
-//  mpu.setZGyroOffset(-38);
-    mpu.setXAccelOffset(0);
-    mpu.setYAccelOffset(0);
-    mpu.setZAccelOffset(0);
-    mpu.setXGyroOffset(0);
-    mpu.setYGyroOffset(0);
-    mpu.setZGyroOffset(0);
+  mpu.setXAccelOffset(ax_offset);
+  mpu.setYAccelOffset(ay_offset);
+  mpu.setZAccelOffset(az_offset);
+  mpu.setXGyroOffset(gx_offset);
+  mpu.setYGyroOffset(gy_offset);
+  mpu.setZGyroOffset(gz_offset);
+//    mpu.setXAccelOffset(0);
+//    mpu.setYAccelOffset(0);
+//    mpu.setZAccelOffset(0);
+//    mpu.setXGyroOffset(0);
+//    mpu.setYGyroOffset(0);
+//    mpu.setZGyroOffset(0);
 
   if (devStatus == 0) {
       Log.trace("Enabling DMP...\n");
@@ -242,7 +250,7 @@ void loop() {
     float pitch = ypr[1] * 180/M_PI;
     float roll = ypr[2] * 180/M_PI;
 
-    #ifdef defined(DEBUG) and defined(PRINT_GYRO)
+    #ifdef defined(DEBUG) and defined(PRINT_GYRO_MEASURS)
     Log.trace("areal\t%d\t%d\t%d \t||| ", aaReal.x, aaReal.y, aaReal.z);
     Serial.print("YPR:\t ");
     Serial.print(yaw);
@@ -310,19 +318,21 @@ int getVibration() {
 }
 
 void calibrate() {
+  #ifdef DEBUG
   while(state < 3) {
+  #else
+  while(state < 2) {
+  #endif
     if (state==0){
       Log.trace("Reading sensors for first time...\n");
       meansensors();
       state++;
-      delay(1000);
     }
   
     if (state==1) {
       Log.trace("Calculating offsets...\n");
       calibration();
       state++;
-      delay(1000);
     }
 
     #ifdef DEBUG
@@ -368,19 +378,9 @@ void meansensors(){
     fade();
     // read raw accel/gyro measurements from device
     mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
-    #if defined(DEBUG) and defined(PRINT_GYRO)
-    Serial.print("getMotion6: ax ");
-    Serial.print(ax);
-    Serial.print("\tay ");
-    Serial.print(ay);
-    Serial.print("\taz ");
-    Serial.print(az);
-    Serial.print("\tgx ");
-    Serial.print(gx);
-    Serial.print("\tgy ");
-    Serial.print(gy);
-    Serial.print("\tgz ");
-    Serial.println(gz);
+    #if defined(DEBUG) and defined(PRINT_GYRO_MEASURS)
+    Serial.print("getMotion6:");
+    serialPrintGyro(ax, ay, az, gx, gy, gz);
     #endif
     
     if (i>100 && i<=(buffersize+100)){ //First 100 measures are discarded
@@ -405,19 +405,19 @@ void meansensors(){
 }
 
 void calibration(){
-  ax_offset=-mean_ax/8;
-  ay_offset=-mean_ay/8;
-  az_offset=(16384-mean_az)/8;
-
-  gx_offset=-mean_gx/4;
-  gy_offset=-mean_gy/4;
-  gz_offset=-mean_gz/4;
+//  ax_offset=-mean_ax/8;
+//  ay_offset=-mean_ay/8;
+//  az_offset=(16384-mean_az)/8;
+//
+//  gx_offset=-mean_gx/4;
+//  gy_offset=-mean_gy/4;
+//  gz_offset=-mean_gz/4;
   while (1){
     int ready=0;
     
     flashLed();
     fade();
-    
+
     mpu.setXAccelOffset(ax_offset);
     mpu.setYAccelOffset(ay_offset);
     mpu.setZAccelOffset(az_offset);
@@ -425,9 +425,15 @@ void calibration(){
     mpu.setXGyroOffset(gx_offset);
     mpu.setYGyroOffset(gy_offset);
     mpu.setZGyroOffset(gz_offset);
+    #if defined(DEBUG) and defined(PRINT_GYRO_CALIB_PROCESS)
+    Log.trace("Gyro mean values from measur func:");
+    serialPrintGyro(mean_ax, mean_ay, mean_az, mean_gx, mean_gy, mean_gz);
+    Log.trace("Gyro set offsets in calibration:");
+    serialPrintGyro(ax_offset, ay_offset, ay_offset, gx_offset, gy_offset, gz_offset);
+    #endif
 
     meansensors();
-    Log.trace("In calibration...\n");
+    Log.notice("In calibration...\n");
 
     if (abs(mean_ax)<=acel_deadzone) ready++;
     else ax_offset=ax_offset-mean_ax/acel_deadzone;
@@ -448,6 +454,7 @@ void calibration(){
     else gz_offset=gz_offset-mean_gz/(giro_deadzone+1);
 
     if (ready==6) break;
+
   }
 }
 
@@ -484,4 +491,18 @@ void fade() {
 void red() {}
 void blue() {}
 void fade() {}
+#endif
+
+#ifdef DEBUG
+void serialPrintGyro(int ax, int ay, int az, int gx, int gy, int gz) {
+  Serial.print("\t");
+  Serial.print(ax);Serial.print(" \t");
+  Serial.print(ay);Serial.print(" \t");
+  Serial.print(az);Serial.print(" \t");
+  Serial.print(" || \t");
+  Serial.print(gx);Serial.print(" \t");
+  Serial.print(gy);Serial.print(" \t");
+  Serial.print(gz);
+  Serial.println("");
+}
 #endif
